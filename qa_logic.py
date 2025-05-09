@@ -3,9 +3,12 @@ import numpy as np
 from together import Together
 from sklearn.metrics.pairwise import cosine_similarity
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from dotenv import load_dotenv
+
+load_dotenv()  # Load environment variables from .env file
 
 # Initialize Together client (replace with your API key)
-client = Together(api_key="01a96d31d7ac1e202391bbde8fd6d8842e56ebe6606e4cb9e1cd3969c3fe6ab3")  # Replace with your actual key
+client = Together(api_key=os.getenv("TOGETHER_API_KEY"))
 
 # Load your document (e.g., PDF, TXT)
 def load_document(file_path):
