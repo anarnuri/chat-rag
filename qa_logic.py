@@ -4,6 +4,7 @@ from together import Together
 from sklearn.metrics.pairwise import cosine_similarity
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
+import os 
 
 load_dotenv()  # Load environment variables from .env file
 
