@@ -26,30 +26,55 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const result = await response.json();
             
-            if (response.ok) {
-                currentFileId = result.file_id;
-                messageInput.disabled = false;
-                submitBtn.disabled = false;
-                
-                // Clear chat and show success
-                chatMessages.innerHTML = '';
-                addMessage('assistant', `I've processed "${result.filename}". Ask me anything about it!`);
-            } else {
-                throw new Error(result.detail || 'Upload failed');
+            if (!response.ok) {
+                // Handle structured error responses
+                const errorMsg = result.detail?.message || 
+                                result.detail?.error || 
+                                result.detail || 
+                                'Upload failed';
+                const errorStage = result.detail?.stage ? ` (failed at: ${result.detail.stage})` : '';
+                throw new Error(`${errorMsg}${errorStage}`);
             }
+
+            currentFileId = result.conversation_id;
+            messageInput.disabled = false;
+            submitBtn.disabled = false;
+            
+            // Clear chat and show success
+            chatMessages.innerHTML = '';
+            addMessage('assistant', `I've processed "${result.filename}". Ask me anything about it!`);
+            
+            // Log full response for debugging
+            console.log('Upload successful:', result);
         } catch (error) {
-            addMessage('assistant', `Error: ${error.message}`, true);
+            console.error('Upload error:', error);
+            addMessage('assistant', `❌ ${formatErrorMessage(error)}`, true);
+            
+            // Show more details in console for debugging
+            if (error.response) {
+                error.response.json().then(errData => {
+                    console.error('Full error details:', errData);
+                });
+            }
         } finally {
             fileInput.value = '';
         }
     });
 
-    // Handle message submission
     messageForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const question = messageInput.value.trim();
         
-        if (!question || !currentFileId) return;
+        if (!question) {
+            addMessage('assistant', 'Please type a question', true);
+            return;
+        }
+        if (!currentFileId) {
+            addMessage('assistant', 'Please upload a file first', true);
+            return;
+        }
+        
+        console.log('SENDING conversation_id:', currentFileId); // Debug line
         
         // Add user message
         addMessage('user', question);
@@ -60,29 +85,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const typingId = showTypingIndicator();
         
         try {
+            // ===== PUT THE DEBUG CODE HERE =====
+            console.log('Current conversation_id:', currentFileId);
+            console.log('Question:', question);
+
             const response = await fetch('/ask', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    file_id: currentFileId,
+                    conversation_id: String(currentFileId), // Ensure it's a string
                     question: question
                 })
+            }).catch(err => {
+                console.error('Network error:', err);
+                throw err;
             });
-            
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('Server error details:', errorData);
+                throw new Error(errorData.detail || 'Request failed');
+            }
+            // ===== END OF DEBUG CODE =====
+
             const result = await response.json();
             
-            if (response.ok) {
-                // Remove typing indicator and show actual response
-                removeTypingIndicator(typingId);
-                addMessage('assistant', result.answer);
-            } else {
-                throw new Error(result.detail || 'Failed to get answer');
-            }
+            // Remove typing indicator and show actual response
+            removeTypingIndicator(typingId);
+            addMessage('assistant', result.answer);
+            
+            console.log('API response:', result);
         } catch (error) {
             removeTypingIndicator(typingId);
-            addMessage('assistant', `Error: ${error.message}`, true);
+            console.error('Ask error:', error);
+            addMessage('assistant', `❌ ${formatErrorMessage(error)}`, true);
         } finally {
             isAssistantTyping = false;
         }
@@ -92,14 +130,28 @@ document.addEventListener('DOMContentLoaded', () => {
     function addMessage(sender, text, isError = false) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}-message`;
-        if (isError) messageDiv.style.color = 'red';
-        
-        const content = document.createElement('div');
-        content.textContent = text;
-        messageDiv.appendChild(content);
+        if (isError) {
+            messageDiv.classList.add('error-message');
+            messageDiv.innerHTML = `<div class="error-content">${text}</div>`;
+        } else {
+            messageDiv.textContent = text;
+        }
         
         chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function formatErrorMessage(error) {
+        // Handle different error formats
+        if (error.message.includes('Failed to fetch')) {
+            return 'Network error - please check your connection';
+        }
+        
+        if (error.message.includes('Unexpected token')) {
+            return 'Invalid server response';
+        }
+        
+        return error.message;
     }
 
     function showTypingIndicator() {
@@ -112,6 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="typing-dot"></span>
                 <span class="typing-dot"></span>
                 <span class="typing-dot"></span>
+                <span class="typing-text">Thinking...</span>
             </div>
         `;
         chatMessages.appendChild(typingDiv);
