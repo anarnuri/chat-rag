@@ -35,13 +35,35 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+# --- Secure Bucket Name Handling ---
+def get_bucket():
+    with time_operation("Bucket name retrieval"):
+        try:
+            client = boto3.client('secretsmanager')
+            response = client.get_secret_value(SecretId="rag-app/s3-bucket")
+            return response['SecretString']
+        except ClientError as e:
+            logger.error(f"AWS Secrets Error: {e}")
+            raise RuntimeError(f"AWS Secrets Error: {e}")
+
+# --- Secure Table Name Handling ---
+def get_table():
+    with time_operation("Table name retrieval"):
+        try:
+            client = boto3.client('secretsmanager')
+            response = client.get_secret_value(SecretId="rag-app/dynamodb-table")
+            return response['SecretString']
+        except ClientError as e:
+            logger.error(f"AWS Secrets Error: {e}")
+            raise RuntimeError(f"AWS Secrets Error: {e}")
+          
 # AWS Clients
 s3 = boto3.client('s3', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 
 # AWS Resource Names
-S3_BUCKET = "rag-bucket-s3"
-DYNAMO_TABLE = "RAGConversations"
+S3_BUCKET = get_bucket()
+DYNAMO_TABLE = get_table()
 
 # Initialize tables
 try:
