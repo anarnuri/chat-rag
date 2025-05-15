@@ -295,7 +295,8 @@ async def ask_question(request: Request):
         # Parse input
         with time_operation("Request parsing"):
             data = await request.json()
-            conversation_id = data.get("file_id")
+            print(data)
+            conversation_id = data.get("conversation_id")
             question = data.get("question")
             
             if not conversation_id:
